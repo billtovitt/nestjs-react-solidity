@@ -1,8 +1,7 @@
 # Staking ERC-20 token
 
-- Backend => Nest js ( Node js framework )
-- Frontend => React js
-- Smart Contract => ( Solidity )
+- Backend (staking-backend) => Nest js ( Node js framework )
+- Frontend (staking-front) => React js
+- Smart Contract (staking-contract) => ( Solidity )
 
 ### How to run the project
-
