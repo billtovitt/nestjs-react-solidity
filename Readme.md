@@ -4,9 +4,7 @@
 - Frontend (staking-front) => React js
 - Smart Contract (staking-contract) => ( Solidity )
 
-### How to run the project
-
-- backend <br />
+### How to run the project ( should change the network to rinkeby network )
 
 In staking-backend npm install & npm run start:dev <br />
 
