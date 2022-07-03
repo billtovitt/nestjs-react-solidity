@@ -9,6 +9,7 @@ import { Divider, Grid, Paper, TextField } from "@mui/material";
 import { Container } from "@mui/system";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { toast } from "react-toastify";
+import { from } from "rxjs";
 
 import TransactionTable from "./TransactionTable";
 import { formatEthToNum, RandomNum } from "./utils/usage";
@@ -35,34 +36,43 @@ function App() {
   const [stakingAmount, setStakingAmount] = useState("");
   const [unStakingAmount, setUnStakingAmount] = useState("");
 
-  const initialConfig = async () => {
+  const initialConfig = () => {
     setLoading(false);
     setStakingAmount("");
     setUnStakingAmount("");
+    setActioned(RandomNum());
+    initStaking();
+    initERC();
   };
 
-  const handleConnectWallet = async () => {
-    const accounts = await provider.send("eth_requestAccounts", []);
-    setAccount(accounts[0]);
+  const handleConnectWallet = () => {
+    var accountsObservable = from(provider.send("eth_requestAccounts", []));
+    accountsObservable.subscribe((accounts) => {
+      setAccount(accounts[0]);
+    });
   };
 
-  const initERC = async () => {
-    const accounts = await provider.send("eth_requestAccounts", []);
-    const bigBalance = await tokenContract.balanceOf(accounts[0]);
-    setBalance(formatEthToNum(bigBalance));
+  const initERC = () => {
+    var tokenBalanceObservable = from(tokenContract.balanceOf(account));
+    tokenBalanceObservable.subscribe((bigBalance) => {
+      setBalance(formatEthToNum(bigBalance));
+    });
   };
 
-  const initStaking = async () => {
+  const initStaking = () => {
     const signer = provider.getSigner();
 
     const stakingContractWithSigner = stakingContract.connect(signer);
-    const bigStakedBalance = await stakingContractWithSigner.getStakedAmount();
-    setStakedBalance(formatEthToNum(bigStakedBalance));
 
-    const bigRewardBalance = await stakingContractWithSigner.getRewardBalance();
-    setRewardBalance(
-      (Number(formatEthToNum(bigRewardBalance)) / 10 ** 18).toFixed(2)
-    );
+    var stakedObservable = from(stakingContractWithSigner.getStakedAmount());
+    stakedObservable.subscribe((value) => {
+      setStakedBalance(formatEthToNum(value));
+    });
+
+    var rewardObservable = from(stakingContractWithSigner.getRewardBalance());
+    rewardObservable.subscribe((value) => {
+      setRewardBalance(formatEthToNum(value.toString()));
+    });
 
     stakingContract.on("Staked", (owner, amount) => {
       setActioned(RandomNum());
@@ -75,18 +85,7 @@ function App() {
     });
   };
 
-  const handleClaimRewards = async () => {
-    setLoading(true);
-    const signer = provider.getSigner();
-    const stakingContractWithSigner = stakingContract.connect(signer);
-    try {
-      const tx = await stakingContractWithSigner.claimRewards();
-      await tx.wait();
-    } catch (error) {}
-    setLoading(false);
-  };
-
-  const handleStake = async () => {
+  const handleStake = () => {
     if (!stakingAmount) {
       toast("Please input valid staking amount");
       return;
@@ -94,47 +93,60 @@ function App() {
     setLoading(true);
     const signer = provider.getSigner();
     const tokenContractWithSigner = tokenContract.connect(signer);
-    const allowance = await tokenContract.allowance(account, stakingAddress);
-
-    const tokenUnits = await tokenContract.decimals();
-    const tokenAmountInEther = ethers.utils.parseUnits(
-      stakingAmount,
-      tokenUnits
-    );
-
-    if (formatEthToNum(allowance) < Number(stakingAmount)) {
-      try {
-        const tx = await tokenContractWithSigner.approve(
-          stakingAddress,
-          tokenAmountInEther
+    var alloowOb = from(tokenContract.allowance(account, stakingAddress));
+    alloowOb.subscribe((allowance) => {
+      var unitsOb = from(tokenContract.decimals());
+      unitsOb.subscribe((tokenUnits) => {
+        const tokenAmountInEther = ethers.utils.parseUnits(
+          stakingAmount,
+          tokenUnits
         );
-        await tx.wait();
-        if (tx.hash) {
+
+        if (formatEthToNum(allowance) < Number(stakingAmount)) {
+          try {
+            var txOb = from(
+              tokenContractWithSigner.approve(
+                stakingAddress,
+                tokenAmountInEther
+              )
+            );
+            txOb.subscribe((tx) => {
+              var txWaitOb = from(tx.wait());
+              txWaitOb.subscribe(() => {
+                stakeToken(tokenAmountInEther);
+              });
+            });
+          } catch (error) {
+            initialConfig();
+          }
+        } else {
           stakeToken(tokenAmountInEther);
         }
-      } catch (error) {
-        initialConfig();
-      }
-    } else {
-      stakeToken(tokenAmountInEther);
-    }
+      });
+    });
   };
 
-  const stakeToken = async (tokenAmountInEther) => {
+  const stakeToken = (tokenAmountInEther) => {
     const signer = provider.getSigner();
 
     const stakingContractWithSigner = stakingContract.connect(signer);
     try {
-      const tx = await stakingContractWithSigner.stake(tokenAmountInEther);
-      await tx.wait();
-      if (tx.hash) {
-        toast(`You staked ${formatEthToNum(tokenAmountInEther)} successfully`);
-      }
-    } catch (error) {}
-    initialConfig();
+      var txOb = from(stakingContractWithSigner.stake(tokenAmountInEther));
+      txOb.subscribe((tx) => {
+        var txWaitOb = from(tx.wait());
+        txWaitOb.subscribe(() => {
+          toast(
+            `You staked ${formatEthToNum(tokenAmountInEther)} successfully`
+          );
+          initialConfig();
+        });
+      });
+    } catch (error) {
+      initialConfig();
+    }
   };
 
-  const handleUnStake = async () => {
+  const handleUnStake = () => {
     setLoading(true);
     if (!unStakingAmount) {
       toast("Please input valid staking amount");
@@ -143,42 +155,63 @@ function App() {
     const signer = provider.getSigner();
     const stakingContractWithSigner = stakingContract.connect(signer);
 
-    const bigStakedBalance = await stakingContractWithSigner.getStakedAmount();
-    if (formatEthToNum(bigStakedBalance) >= Number(unStakingAmount)) {
-      const tokenUnits = await tokenContract.decimals();
-      const tokenAmountInEther = ethers.utils.parseUnits(
-        unStakingAmount,
-        tokenUnits
-      );
+    var stakedObservable = from(stakingContractWithSigner.getStakedAmount());
+    stakedObservable.subscribe((bigStakedBalance) => {
+      if (formatEthToNum(bigStakedBalance) >= Number(unStakingAmount)) {
+        var unitsOb = from(tokenContract.decimals());
+        unitsOb.subscribe((tokenUnits) => {
+          const tokenAmountInEther = ethers.utils.parseUnits(
+            unStakingAmount,
+            tokenUnits
+          );
 
-      const tx = await stakingContractWithSigner.unStake(tokenAmountInEther);
-      await tx.wait();
-      if (tx.hash) {
-        toast(`You unstaked ${formatEthToNum(unStakingAmount)} successfully`);
+          var txOb = from(
+            stakingContractWithSigner.unStake(tokenAmountInEther)
+          );
+          txOb.subscribe((tx) => {
+            var txWaitOb = from(tx.wait());
+            txWaitOb.subscribe(() => {
+              toast(`You unstaked ${unStakingAmount} successfully`);
+              initialConfig();
+            });
+          });
+        });
+      } else {
+        toast("Unstake amount is wrong");
+        initialConfig();
       }
-    } else {
-      toast("Unstake amount is wrong");
-    }
+    });
+  };
+
+  const handleClaimRewards = async () => {
+    setLoading(true);
+    const signer = provider.getSigner();
+    const stakingContractWithSigner = stakingContract.connect(signer);
+    try {
+      var txOb = from(stakingContractWithSigner.claimRewards());
+      txOb.subscribe((tx) => {
+        var txWaitOb = from(tx.wait());
+        txWaitOb.subscribe(() => {
+          toast("You claimed successfully!");
+        });
+      });
+    } catch (error) {}
+    setLoading(false);
   };
 
   useEffect(() => {
     if (provider) {
       handleConnectWallet();
     }
+    // eslint-disable-next-line
   }, [provider]);
 
   useEffect(() => {
-    initialConfig();
-    if (tokenContract) {
-      initERC();
+    if (account) {
+      initialConfig();
     }
+    // eslint-disable-next-line
   }, [account]);
-
-  useEffect(() => {
-    if (stakingContract) {
-      initStaking();
-    }
-  }, [stakingContract]);
 
   return (
     <div>
