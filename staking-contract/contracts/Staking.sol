@@ -63,7 +63,11 @@ contract TokenStaking {
 
         stakedToken.startedDate = block.timestamp;
         stakedToken.stakedAmount += amount;
-        stakedToken.rewardPerSec = apy / stakedToken.stakedAmount / 365 / 100;
+        stakedToken.rewardPerSec =
+            (apy * 10**18) /
+            stakedToken.stakedAmount /
+            365 /
+            100;
         stakedToken.currentReward +=
             (block.timestamp - stakedToken.startedDate) *
             stakedToken.rewardPerSec;
@@ -81,7 +85,11 @@ contract TokenStaking {
 
         stakedToken.startedDate = block.timestamp;
         stakedToken.stakedAmount -= amount;
-        stakedToken.rewardPerSec = apy / stakedToken.stakedAmount / 365 / 100;
+        stakedToken.rewardPerSec =
+            (apy * 10**18) /
+            stakedToken.stakedAmount /
+            365 /
+            100;
         stakedToken.currentReward +=
             (block.timestamp - stakedToken.startedDate) *
             stakedToken.rewardPerSec;

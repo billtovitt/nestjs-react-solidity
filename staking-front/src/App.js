@@ -10,16 +10,20 @@ import { Container } from "@mui/system";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { toast } from "react-toastify";
 
-import ERC20_ABI from "./assets/abi/erc20.json";
-import STAKING_ABI from "./assets/abi/staking.json";
-
 import TransactionTable from "./TransactionTable";
+import { formatEthToNum, RandomNum } from "./utils/usage";
+import {
+  useDefaultProvider,
+  useERCTokenContract,
+  useStakingContract,
+} from "./hooks/useContractHelper";
+import { stakingAddress } from "./config";
 
 function App() {
-  const tokenAddress = "0x4f6cc260820a444136F930DcbF6490d8BD878bCC";
-  const stakingAddress = "0xE84962d70d997Ca9014a5b890f7176E1936D3a35";
+  const provider = useDefaultProvider();
+  const tokenContract = useERCTokenContract();
+  const stakingContract = useStakingContract();
 
-  const [provider, setProvider] = useState(null);
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState(0);
   const [stakedBalance, setStakedBalance] = useState(0);
@@ -31,58 +35,54 @@ function App() {
   const [stakingAmount, setStakingAmount] = useState("");
   const [unStakingAmount, setUnStakingAmount] = useState("");
 
-  const [tokenContract, setTokenContract] = useState(null);
-  const [stakingContract, setStakingContract] = useState(null);
-
   const initialConfig = async () => {
     setLoading(false);
     setStakingAmount("");
     setUnStakingAmount("");
-
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-    setProvider(provider);
-    const accounts = await provider.send("eth_requestAccounts", []);
-    setAccount(accounts[0]);
-
-    const tContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-    setTokenContract(tContract);
-    const sContract = new ethers.Contract(
-      stakingAddress,
-      STAKING_ABI,
-      provider
-    );
-    setStakingContract(sContract);
-
-    const bigBalance = await tContract.balanceOf(accounts[0]);
-    setBalance(ethers.utils.formatEther(bigBalance));
-
-    const stakingContractWithSigner = sContract.connect(signer);
-    const bigStakedBalance = await stakingContractWithSigner.getStakedAmount();
-    setStakedBalance(ethers.utils.formatEther(bigStakedBalance));
-
-    const bigRewardBalance = await stakingContractWithSigner.getRewardBalance();
-    setRewardBalance(ethers.utils.formatEther(bigRewardBalance));
-
-    sContract.on("Staked", (owner, amount) => {
-      setActioned(new Date().getTime());
-    });
-    sContract.on("UnStaked", (owner, amount) => {
-      setActioned(new Date().getTime());
-    });
-    sContract.on("Claimed", (owner, amount) => {
-      setActioned(new Date().getTime());
-    });
   };
 
   const handleConnectWallet = async () => {
-    initialConfig();
+    const accounts = await provider.send("eth_requestAccounts", []);
+    setAccount(accounts[0]);
+  };
+
+  const initERC = async () => {
+    const accounts = await provider.send("eth_requestAccounts", []);
+    const bigBalance = await tokenContract.balanceOf(accounts[0]);
+    setBalance(formatEthToNum(bigBalance));
+  };
+
+  const initStaking = async () => {
+    const signer = provider.getSigner();
+
+    const stakingContractWithSigner = stakingContract.connect(signer);
+    const bigStakedBalance = await stakingContractWithSigner.getStakedAmount();
+    setStakedBalance(formatEthToNum(bigStakedBalance));
+
+    const bigRewardBalance = await stakingContractWithSigner.getRewardBalance();
+    console.log(ethers.utils.formatEther(bigRewardBalance));
+    setRewardBalance(formatEthToNum(bigRewardBalance));
+
+    stakingContract.on("Staked", (owner, amount) => {
+      setActioned(RandomNum());
+    });
+    stakingContract.on("UnStaked", (owner, amount) => {
+      setActioned(RandomNum());
+    });
+    stakingContract.on("Claimed", (owner, amount) => {
+      setActioned(RandomNum());
+    });
   };
 
   const handleClaimRewards = async () => {
+    setLoading(true);
     const signer = provider.getSigner();
     const stakingContractWithSigner = stakingContract.connect(signer);
-    await stakingContractWithSigner.claimRewards();
+    try {
+      const tx = await stakingContractWithSigner.claimRewards();
+      await tx.wait();
+    } catch (error) {}
+    setLoading(false);
   };
 
   const handleStake = async () => {
@@ -101,14 +101,18 @@ function App() {
       tokenUnits
     );
 
-    if (Number(ethers.utils.formatEther(allowance)) < Number(stakingAmount)) {
-      const tx = await tokenContractWithSigner.approve(
-        stakingAddress,
-        tokenAmountInEther
-      );
-      await tx.wait();
-      if (tx.hash) {
-        stakeToken(tokenAmountInEther);
+    if (formatEthToNum(allowance) < Number(stakingAmount)) {
+      try {
+        const tx = await tokenContractWithSigner.approve(
+          stakingAddress,
+          tokenAmountInEther
+        );
+        await tx.wait();
+        if (tx.hash) {
+          stakeToken(tokenAmountInEther);
+        }
+      } catch (error) {
+        initialConfig();
       }
     } else {
       stakeToken(tokenAmountInEther);
@@ -119,16 +123,14 @@ function App() {
     const signer = provider.getSigner();
 
     const stakingContractWithSigner = stakingContract.connect(signer);
-    const tx = await stakingContractWithSigner.stake(tokenAmountInEther);
-    await tx.wait();
-    if (tx.hash) {
-      toast(
-        `You staked ${ethers.utils.formatEther(
-          tokenAmountInEther
-        )} successfully`
-      );
-      initialConfig();
-    }
+    try {
+      const tx = await stakingContractWithSigner.stake(tokenAmountInEther);
+      await tx.wait();
+      if (tx.hash) {
+        toast(`You staked ${formatEthToNum(tokenAmountInEther)} successfully`);
+      }
+    } catch (error) {}
+    initialConfig();
   };
 
   const handleUnStake = async () => {
@@ -141,28 +143,18 @@ function App() {
     const stakingContractWithSigner = stakingContract.connect(signer);
 
     const bigStakedBalance = await stakingContractWithSigner.getStakedAmount();
-    if (
-      Number(ethers.utils.formatEther(bigStakedBalance)) >=
-      Number(unStakingAmount)
-    ) {
+    if (formatEthToNum(bigStakedBalance) >= Number(unStakingAmount)) {
       const tokenUnits = await tokenContract.decimals();
       const tokenAmountInEther = ethers.utils.parseUnits(
         unStakingAmount,
         tokenUnits
       );
 
-      stakingContractWithSigner.unStake(tokenAmountInEther).then(
-        (result) => {},
-        (error) => {
-          setLoading(false);
-        }
-      );
-
-      var filter = stakingContractWithSigner.filters.UnStaked(account, null);
-      stakingContractWithSigner.on(filter, (owner, amount) => {
-        toast(`You unstaked ${ethers.utils.formatEther(amount)} successfully`);
-        initialConfig();
-      });
+      const tx = await stakingContractWithSigner.unStake(tokenAmountInEther);
+      await tx.wait();
+      if (tx.hash) {
+        toast(`You unstaked ${formatEthToNum(unStakingAmount)} successfully`);
+      }
     } else {
       toast("Unstake amount is wrong");
     }
@@ -171,6 +163,24 @@ function App() {
   useEffect(() => {
     initialConfig();
   }, []);
+
+  useEffect(() => {
+    if (provider) {
+      handleConnectWallet();
+    }
+  }, [provider]);
+
+  useEffect(() => {
+    if (tokenContract) {
+      initERC();
+    }
+  }, [tokenContract]);
+
+  useEffect(() => {
+    if (stakingContract) {
+      initStaking();
+    }
+  }, [stakingContract]);
 
   return (
     <div>
@@ -204,9 +214,14 @@ function App() {
                 rewardBalance < 0.01 ? "less than 0.01" : rewardBalance
               }`}
             </Typography>
-            <Button variant="contained" onClick={() => handleClaimRewards()}>
+            <LoadingButton
+              loading={loading}
+              color="primary"
+              variant="contained"
+              onClick={() => handleClaimRewards()}
+            >
               Claim Rewards
-            </Button>
+            </LoadingButton>
           </Grid>
           <Paper
             component="form"
