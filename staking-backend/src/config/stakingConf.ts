@@ -1,4 +1,6 @@
-[
+export const StakingAddress = "0xE5eeD366b3B65132b97a132a3E1230b94Eaf7B0f";
+
+export const StakingABI = [
 	{
 		"inputs": [
 			{
@@ -196,4 +198,4 @@
 		"stateMutability": "view",
 		"type": "function"
 	}
-]
+];

@@ -63,11 +63,15 @@ contract TokenStaking {
 
         stakedToken.startedDate = block.timestamp;
         stakedToken.stakedAmount += amount;
-        stakedToken.rewardPerSec =
-            (apy * 10**18) /
-            stakedToken.stakedAmount /
-            365 /
+        uint256 wholePrice = (1000 * stakedToken.stakedAmount * 10**18 * apy) /
             100;
+        uint256 dayToSec = 365 * 24 * 60 * 60;
+        stakedToken.rewardPerSec = this.calcDiv(wholePrice, dayToSec);
+
+        stakedToken.rewardPerSec = this.calcDiv(
+            (apy * 10**18),
+            (stakedToken.stakedAmount * 365 * 100)
+        );
         stakedToken.currentReward +=
             (block.timestamp - stakedToken.startedDate) *
             stakedToken.rewardPerSec;
@@ -85,11 +89,10 @@ contract TokenStaking {
 
         stakedToken.startedDate = block.timestamp;
         stakedToken.stakedAmount -= amount;
-        stakedToken.rewardPerSec =
-            (apy * 10**18) /
-            stakedToken.stakedAmount /
-            365 /
+        uint256 wholePrice = (1000 * stakedToken.stakedAmount * 10**18 * apy) /
             100;
+        uint256 dayToSec = 365 * 24 * 60 * 60;
+        stakedToken.rewardPerSec = this.calcDiv(wholePrice, dayToSec);
         stakedToken.currentReward +=
             (block.timestamp - stakedToken.startedDate) *
             stakedToken.rewardPerSec;
@@ -120,5 +123,13 @@ contract TokenStaking {
         _token.transfer(msg.sender, rewardAmount);
 
         emit Claimed(msg.sender, rewardAmount);
+    }
+
+    function calcDiv(uint256 a, uint256 b) external pure returns (uint256) {
+        return (a - (a % b)) / b;
+    }
+
+    function getStaked(address _owner) public view returns (StakedToken memory) {
+        return stakedInfo[_owner];
     }
 }

@@ -3,16 +3,14 @@ import { Transaction } from './transaction.entity';
 import { TransactionsService } from './transactions/transactions.service';
 import { Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { ethers } from 'ethers';
-import StakingABI from '../config/stakingABI';
+import { StakingABI, StakingAddress } from '../config/stakingConf';
 
 @Controller('transactions')
 export class TransactionsController {
   constructor(private transactionsService: TransactionsService) {
-    
     const provider = ethers.getDefaultProvider('rinkeby');
-    const stakingAddress = '0xE84962d70d997Ca9014a5b890f7176E1936D3a35';
     const stakingContract = new ethers.Contract(
-      stakingAddress,
+      StakingAddress,
       StakingABI,
       provider,
     );
@@ -24,7 +22,7 @@ export class TransactionsController {
         amount: Number(ethers.utils.formatEther(amount)),
         type: 1,
         time: new Date().getTime(),
-      }
+      };
       this.transactionsService.create(txData);
     });
 
@@ -35,10 +33,10 @@ export class TransactionsController {
         amount: Number(ethers.utils.formatEther(amount)),
         type: 2,
         time: new Date().getTime(),
-      }
+      };
       this.transactionsService.create(txData);
     });
-    
+
     stakingContract.on('Claimed', (owner, amount) => {
       var txData = {
         id: new Date().getTime(),
@@ -46,10 +44,9 @@ export class TransactionsController {
         amount: Number(ethers.utils.formatEther(amount)),
         type: 3,
         time: new Date().getTime(),
-      }
+      };
       this.transactionsService.create(txData);
     });
-
   }
   @Get()
   index(): Promise<Transaction[]> {

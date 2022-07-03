@@ -60,8 +60,9 @@ function App() {
     setStakedBalance(formatEthToNum(bigStakedBalance));
 
     const bigRewardBalance = await stakingContractWithSigner.getRewardBalance();
-    console.log(ethers.utils.formatEther(bigRewardBalance));
-    setRewardBalance(formatEthToNum(bigRewardBalance));
+    setRewardBalance(
+      (Number(formatEthToNum(bigRewardBalance)) / 10 ** 18).toFixed(2)
+    );
 
     stakingContract.on("Staked", (owner, amount) => {
       setActioned(RandomNum());
@@ -161,20 +162,17 @@ function App() {
   };
 
   useEffect(() => {
-    initialConfig();
-  }, []);
-
-  useEffect(() => {
     if (provider) {
       handleConnectWallet();
     }
   }, [provider]);
 
   useEffect(() => {
+    initialConfig();
     if (tokenContract) {
       initERC();
     }
-  }, [tokenContract]);
+  }, [account]);
 
   useEffect(() => {
     if (stakingContract) {
@@ -210,9 +208,7 @@ function App() {
             }}
           >
             <Typography variant="h7" sx={{ marginRight: 1 }}>
-              {`Reward Balance: ${
-                rewardBalance < 0.01 ? "less than 0.01" : rewardBalance
-              }`}
+              {`Reward Balance: ${rewardBalance} SET`}
             </Typography>
             <LoadingButton
               loading={loading}
