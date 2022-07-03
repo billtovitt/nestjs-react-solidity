@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import { DataGrid } from "@mui/x-data-grid";
 import axios from "axios";
+import { from } from "rxjs";
 import { formatDate } from "./utils/usage";
 import { serverURL } from "./config";
-
 const columns = [
   { field: "id", headerName: "ID", width: 50 },
   {
@@ -49,11 +49,13 @@ export default function TransactionTable({ actioned }) {
   const [transactionData, setTransactionData] = useState([]);
 
   const initData = () => {
-    setTimeout(async () => {
+    setTimeout(() => {
       // Fetch Data
       const baseURL = `${serverURL}transactions`;
-      var response = await axios.get(baseURL);
-      setTransactionData(response.data);
+      var responseOb = from(axios.get(baseURL));
+      responseOb.subscribe(({ data }) => {
+        setTransactionData(data);
+      });
     }, 3000);
   };
 
