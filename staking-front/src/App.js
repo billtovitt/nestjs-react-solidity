@@ -9,7 +9,6 @@ import { Divider, Grid, Paper, TextField } from "@mui/material";
 import { Container } from "@mui/system";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { toast } from "react-toastify";
-import axios from "axios";
 
 import ERC20_ABI from "./assets/abi/erc20.json";
 import STAKING_ABI from "./assets/abi/staking.json";
@@ -63,9 +62,7 @@ function App() {
     setStakedBalance(ethers.utils.formatEther(bigStakedBalance));
 
     const bigRewardBalance = await stakingContractWithSigner.getRewardBalance();
-    setRewardBalance(
-      Number(ethers.utils.formatEther(bigRewardBalance)) / 10 ** 18
-    );
+    setRewardBalance(ethers.utils.formatEther(bigRewardBalance));
 
     sContract.on("Staked", (owner, amount) => {
       setActioned(new Date().getTime());
@@ -108,12 +105,7 @@ function App() {
       const tx = await tokenContractWithSigner.approve(
         stakingAddress,
         tokenAmountInEther
-      ); //.then(
-      //   (result) => {},
-      //   (error) => {
-      //     setLoading(false);
-      //   }
-      // );
+      );
       await tx.wait();
       if (tx.hash) {
         stakeToken(tokenAmountInEther);
@@ -127,14 +119,16 @@ function App() {
     const signer = provider.getSigner();
 
     const stakingContractWithSigner = stakingContract.connect(signer);
-    await stakingContractWithSigner.stake(tokenAmountInEther);
-
-    var filter = stakingContractWithSigner.filters.Staked(account, null);
-
-    stakingContractWithSigner.on(filter, (owner, amount) => {
-      toast(`You staked ${ethers.utils.formatEther(amount)} successfully`);
+    const tx = await stakingContractWithSigner.stake(tokenAmountInEther);
+    await tx.wait();
+    if (tx.hash) {
+      toast(
+        `You staked ${ethers.utils.formatEther(
+          tokenAmountInEther
+        )} successfully`
+      );
       initialConfig();
-    });
+    }
   };
 
   const handleUnStake = async () => {

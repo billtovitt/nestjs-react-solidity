@@ -41,12 +41,14 @@ export default function TransactionTable({
   // Transaction data
   const [transactionData, setTransactionData] = useState([]);
 
-  const initData = async () => {
-    // Fetch Data
-    const baseURL = "http://localhost:5000/transactions";
-    var response = await axios.get(baseURL);
-    console.log(response.data);
-    setTransactionData(response.data);
+  const initData = () => {
+    setTimeout(async () => {
+      // Fetch Data
+      const baseURL = "http://localhost:5000/transactions";
+      var response = await axios.get(baseURL);
+      console.log(response.data);
+      setTransactionData(response.data);
+    }, 3000);
   };
 
   useEffect(() => {
